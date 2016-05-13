@@ -95,7 +95,7 @@ public class ReflectionJdbcDaoImplTest {
 
         dao.insert(vanya);
         dao.insert(vasya);
-        //dao.insert(vanya);
+        dao.insert(vanya);
 
         TestObject key = new TestObject();
         key.name = "Vasya";

@@ -7,15 +7,18 @@
 @Entity(tableName = "some_table")
 public class AnotherTestObject {
     @Index public String name;
-    @Index public String surname;
+    @Index public int intUnboxedField;
+    @Index public Integer intBoxedField;
+    @Index public long longUnboxedField;
+    @Index public Long longBoxedField;
 
-    public String country;
-    public int age;
+    public String innerInfo;
 
-    public AnotherTestObject(String name, String surname, String country, int age) {
+    public AnotherTestObject(String name, int field1, Integer field2, long field3, Long field4) {
         this.name = name;
-        this.surname = surname;
-        this.country = country;
-        this.age = age;
+        this.intUnboxedField = field1;
+        this.intBoxedField = field2;
+        this.longUnboxedField = field3;
+        this.longBoxedField = field4;
     }
 }
