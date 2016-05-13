@@ -1,13 +1,11 @@
-import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -34,26 +32,24 @@ public class ReflectionJdbcDaoImplTest {
         connection = DriverManager.getConnection(JDBC_URL);
     }
 
-    @After
-    public void trancateTables() throws Exception {
-        //PreparedStatement
-    }
-
     @Test
     public void testRegister() throws Exception {
         ReflectionJdbcDao<TestObject> dao = new ReflectionJdbcDaoImpl<>(connection);
         dao.register(TestObject.class);
 
-        ResultSet tables = connection.getMetaData().getTables(null, null, "TEST_OBJECT",
-                new String[] {"TABLE"});
+        try (ResultSet tables = connection.getMetaData().getTables(null, null, "TEST_OBJECT",
+                new String[] {"TABLE"})) {
 
-        assertEquals(true, tables.next());
+            assertEquals(true, tables.next());
+        }
     }
 
     @Test
     public void testInsert() throws Exception {
         ReflectionJdbcDao<TestObject> dao = new ReflectionJdbcDaoImpl<>(connection);
         dao.register(TestObject.class);
+
+        truncateTable("test_object");
 
         TestObject obj1 = new TestObject("Vasya", "Pupkin", "USSR", 12);
         TestObject obj2 = new TestObject("Ivan", "Ivanov", "Russia", 20);
@@ -64,25 +60,53 @@ public class ReflectionJdbcDaoImplTest {
         dao.insert(obj3);
         dao.insert(obj1);
 
-        PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM test_object");
-        ResultSet rs = preparedStatement.executeQuery();
+        try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM test_object")) {
+            ResultSet rs = preparedStatement.executeQuery();
 
-        int rowCount = 0;
-        while (rs.next()) {
-            rowCount++;
+            int rowCount = 0;
+            while (rs.next()) {
+                rowCount++;
+            }
+
+            rs.close();
+
+            assertEquals(4, rowCount);
         }
-
-        assertEquals(4, rowCount);
     }
 
     @Test
     public void testUpdate() throws Exception {
+        ReflectionJdbcDao<AnotherTestObject> dao = new ReflectionJdbcDaoImpl<>(connection);
+        dao.register(AnotherTestObject.class);
 
+        String infoAfterUpdate = "Info after update";
+
+        AnotherTestObject obj1 = new AnotherTestObject("Name", 1, 2, 3L, 4L);
+        AnotherTestObject key = new AnotherTestObject("Name", 1, 2, 3L, 4L);
+        obj1.innerInfo = "Info before update";
+
+        dao.insert(obj1);
+
+        obj1.innerInfo = infoAfterUpdate;
+
+        dao.update(obj1);
+
+        assertEquals(infoAfterUpdate, dao.selectByKey(key).innerInfo);
     }
 
     @Test
     public void testDeleteByKey() throws Exception {
+        ReflectionJdbcDao<TestObject> dao = new ReflectionJdbcDaoImpl<>(connection);
+        dao.register(TestObject.class);
 
+        TestObject obj = new TestObject("SomeName", "SomeSurname", "SomeCountry", 100500);
+        TestObject key = new TestObject("SomeName", "SomeSurname", "", 0);
+
+        dao.insert(obj);
+        assertNotNull(dao.selectByKey(key));
+
+        dao.deleteByKey(key);
+        assertNull(dao.selectByKey(key));
     }
 
     @Test
@@ -111,7 +135,32 @@ public class ReflectionJdbcDaoImplTest {
 
     @Test
     public void testSelectAll() throws Exception {
+        ReflectionJdbcDao<TestObject> dao = new ReflectionJdbcDaoImpl<>(connection);
+        dao.register(TestObject.class);
 
+        truncateTable("test_object");
+
+        final int n = 100;
+        boolean was[] = new boolean[n];
+
+        for (int i = 0; i < n; i++) {
+            was[i] = false;
+            dao.insert(new TestObject("" + i, "" + i, "" + i, i));
+        }
+
+        List<TestObject> fromDB = dao.selectAll();
+
+        for (TestObject obj : fromDB) {
+            assertTrue(obj.age < n);
+            assertEquals("" + obj.age, obj.name);
+            assertEquals("" + obj.age, obj.surname);
+            assertEquals("" + obj.age, obj.country);
+            was[obj.age] = true;
+        }
+
+        for (int i = 0; i < n; i++) {
+            assertEquals(true, was[i]);
+        }
     }
 
     /**
@@ -143,6 +192,20 @@ public class ReflectionJdbcDaoImplTest {
         } else {
             //noinspection ResultOfMethodCallIgnored
             file.delete();
+        }
+    }
+
+    /**
+     * Use this method if your test need clean table
+     * (i.e. if you need to check sizes of this table)
+     * to make sure that nothing left from previous tests.
+     *
+     * @param tableName which table to truncate
+     * @throws SQLException
+     */
+    private static void truncateTable(String tableName) throws SQLException {
+        try (PreparedStatement pStatement = connection.prepareStatement("TRUNCATE TABLE " + tableName)) {
+            pStatement.execute();
         }
     }
 

@@ -21,5 +21,5 @@ public @interface Entity {
      *
      * @return name of table or empty line if none specified.
      */
-    String tableName() default ""; // TODO do I really need this? If no, delete corresponding code from `register`
+    String tableName() default "";
 }

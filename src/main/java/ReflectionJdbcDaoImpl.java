@@ -1,5 +1,4 @@
 import java.io.*;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -74,32 +73,35 @@ public class ReflectionJdbcDaoImpl<T> implements ReflectionJdbcDao<T> {
      * {@inheritDoc}
      */
     public void insert(T object) throws SQLException, IllegalAccessException {
-        PreparedStatement pStatement = connection.prepareStatement(insertQueryTemplate);
-        insertKeyValues(pStatement, object, 1);
-        pStatement.setObject(1 + indexedFields.size(), serializeObject((Serializable) object));
+        try (PreparedStatement pStatement = connection.prepareStatement(insertQueryTemplate)) {
+            insertKeyValues(pStatement, object, 1);
+            pStatement.setObject(1 + indexedFields.size(), serializeObject((Serializable) object));
 
-        pStatement.execute();
+            pStatement.execute();
+        }
     }
 
     /**
      * {@inheritDoc}
      */
     public void update(T object) throws SQLException, IllegalAccessException {
-        PreparedStatement pStatement = connection.prepareStatement(updateQueryTemplate);
-        pStatement.setObject(1, serializeObject((Serializable) object));
-        insertKeyValues(pStatement, object, 2);
+        try (PreparedStatement pStatement = connection.prepareStatement(updateQueryTemplate)) {
+            pStatement.setObject(1, serializeObject((Serializable) object));
+            insertKeyValues(pStatement, object, 2);
 
-        pStatement.execute();
+            pStatement.execute();
+        }
     }
 
     /**
      * {@inheritDoc}
      */
     public void deleteByKey(T key) throws SQLException, IllegalAccessException {
-        PreparedStatement pStatement = connection.prepareStatement(deleteQueryTemplate);
-        insertKeyValues(pStatement, key, 1);
+        try (PreparedStatement pStatement = connection.prepareStatement(deleteQueryTemplate)) {
+            insertKeyValues(pStatement, key, 1);
 
-        pStatement.execute();
+            pStatement.execute();
+        }
     }
 
     /**
@@ -107,17 +109,17 @@ public class ReflectionJdbcDaoImpl<T> implements ReflectionJdbcDao<T> {
      */
     @SuppressWarnings("unchecked")
     public T selectByKey(T key) throws IOException, ClassNotFoundException, SQLException, IllegalAccessException {
-        PreparedStatement pStatement = connection.prepareStatement(selectQueryTemplate);
-        insertKeyValues(pStatement, key, 1);
+        try (PreparedStatement pStatement = connection.prepareStatement(selectQueryTemplate)) {
+            insertKeyValues(pStatement, key, 1);
+            ResultSet resultSet = pStatement.executeQuery();
 
-        ResultSet resultSet = pStatement.executeQuery();
-
-        if (resultSet.next()) {
-            ByteArrayInputStream bais = new ByteArrayInputStream(resultSet.getBytes(1));
-            ObjectInputStream ois = new ObjectInputStream(bais);
-            return (T) ois.readObject();
-        } else {
-            return null;
+            if (resultSet.next()) {
+                ByteArrayInputStream bais = new ByteArrayInputStream(resultSet.getBytes(1));
+                ObjectInputStream ois = new ObjectInputStream(bais);
+                return (T) ois.readObject();
+            } else {
+                return null;
+            }
         }
     }
 
@@ -126,17 +128,19 @@ public class ReflectionJdbcDaoImpl<T> implements ReflectionJdbcDao<T> {
      */
     @SuppressWarnings("unchecked")
     public List<T> selectAll() throws IOException, SQLException, ClassNotFoundException {
-        PreparedStatement pStatement = connection.prepareStatement(selectAllQueryTemplate);
-        ResultSet resultSet = pStatement.executeQuery();
+        try (PreparedStatement pStatement = connection.prepareStatement(selectAllQueryTemplate)) {
+            ResultSet resultSet = pStatement.executeQuery();
 
-        List<T> result = new ArrayList<>();
-        while (resultSet.next()){
-            ByteArrayInputStream bais = new ByteArrayInputStream(resultSet.getBytes(1));
-            ObjectInputStream ois = new ObjectInputStream(bais);
-            result.add((T) ois.readObject());
+            List<T> result = new ArrayList<>();
+
+            while (resultSet.next()) {
+                ByteArrayInputStream bais = new ByteArrayInputStream(resultSet.getBytes(1));
+                ObjectInputStream ois = new ObjectInputStream(bais);
+                result.add((T) ois.readObject());
+            }
+
+            return result;
         }
-
-        return result;
     }
 
     private void insertKeyValues(PreparedStatement pStatement, T key, int from) throws IllegalAccessException,
@@ -158,20 +162,6 @@ public class ReflectionJdbcDaoImpl<T> implements ReflectionJdbcDao<T> {
             throw new IllegalArgumentException("class '" + clazz.getName() + "' does not " +
                     "implement java.io.Serializable");
         }
-
-        if (!hasParameterlessPublicConstructor()) {
-            throw new IllegalArgumentException("class '" + clazz.getName() + "' does not " +
-                    "have public default constructor");
-        }
-    }
-
-    private boolean hasParameterlessPublicConstructor() {
-        for (Constructor<?> constructor : clazz.getConstructors()) {
-            if (constructor.getParameterCount() == 0) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void setUpTableName() {
@@ -210,12 +200,13 @@ public class ReflectionJdbcDaoImpl<T> implements ReflectionJdbcDao<T> {
     }
 
     private void createTable() throws SQLException {
-        ResultSet tables = connection.getMetaData().getTables(null, null, tableName.toUpperCase(),
-                new String[] {"TABLE"});
-
-        if (!tables.next()) {
-            PreparedStatement pStatement = connection.prepareStatement(createQueryTemplate);
-            pStatement.execute();
+        try (ResultSet tables = connection.getMetaData().getTables(null, null, tableName.toUpperCase(),
+                new String[] {"TABLE"})) {
+            if (!tables.next()) {
+                try (PreparedStatement pStatement = connection.prepareStatement(createQueryTemplate)) {
+                    pStatement.execute();
+                }
+            }
         }
     }
 

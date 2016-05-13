@@ -1,3 +1,5 @@
+import java.io.Serializable;
+
 /**
  * Created by equi on 03.05.16.
  *
@@ -5,7 +7,7 @@
  */
 
 @Entity(tableName = "some_table")
-public class AnotherTestObject {
+public class AnotherTestObject implements Serializable {
     @Index public String name;
     @Index public int intUnboxedField;
     @Index public Integer intBoxedField;
